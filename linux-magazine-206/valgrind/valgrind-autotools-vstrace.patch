@@ -1,0 +1,32 @@
+Index: Makefile.am
+===================================================================
+--- Makefile.am	(revision 15750)
++++ Makefile.am	(working copy)
+@@ -10,10 +10,12 @@
+ 		lackey \
+ 		none \
+ 		helgrind \
++		vstrace \
+ 		drd
+ 
+ EXP_TOOLS = 	exp-sgcheck \
+ 		exp-bbv \
++		vstrace \
+ 		exp-dhat
+ 
+ # Put docs last because building the HTML is slow and we want to get
+Index: configure.ac
+===================================================================
+--- configure.ac	(revision 15750)
++++ configure.ac	(working copy)
+@@ -4148,6 +4148,10 @@
+    exp-dhat/tests/Makefile
+    shared/Makefile
+    solaris/Makefile
++
++   vstrace/Makefile
++   vstrace/tests/Makefile
++
+ ])
+ AC_CONFIG_FILES([coregrind/link_tool_exe_linux],
+                 [chmod +x coregrind/link_tool_exe_linux])

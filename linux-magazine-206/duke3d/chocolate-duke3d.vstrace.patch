@@ -1,0 +1,209 @@
+diff --git a/Engine/src/enet/include/enet.h b/Engine/src/enet/include/enet.h
+index 5e21ee8..ac1ca86 100644
+--- a/Engine/src/enet/include/enet.h
++++ b/Engine/src/enet/include/enet.h
+@@ -13,15 +13,15 @@ extern "C"
+ #include <stdlib.h>
+ 
+ #ifdef _WIN32
+-#include "enet/win32.h"
++#include "win32.h"
+ #else
+-#include "enet/unix.h"
++#include "unix.h"
+ #endif
+ 
+-#include "enet/types.h"
+-#include "enet/protocol.h"
+-#include "enet/list.h"
+-#include "enet/callbacks.h"
++#include "types.h"
++#include "protocol.h"
++#include "list.h"
++#include "callbacks.h"
+ 
+ #define ENET_VERSION_MAJOR 1
+ #define ENET_VERSION_MINOR 3
+diff --git a/Engine/src/enet/include/protocol.h b/Engine/src/enet/include/protocol.h
+index f8c73d8..5a2970e 100644
+--- a/Engine/src/enet/include/protocol.h
++++ b/Engine/src/enet/include/protocol.h
+@@ -5,7 +5,7 @@
+ #ifndef __ENET_PROTOCOL_H__
+ #define __ENET_PROTOCOL_H__
+ 
+-#include "enet/types.h"
++#include "types.h"
+ 
+ enum
+ {
+diff --git a/Game/src/game.c b/Game/src/game.c
+index d80d954..3d82730 100644
+--- a/Game/src/game.c
++++ b/Game/src/game.c
+@@ -55,7 +55,6 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
+ 
+ #include "global.h"
+ 
+-
+ #define MINITEXT_BLUE	0
+ #define MINITEXT_RED	2
+ #define MINITEXT_YELLOW	23
+@@ -93,6 +92,11 @@ char boardfilename[128] = {0};
+ uint8_t  waterpal[768], slimepal[768], titlepal[768], drealms[768], endingpal[768];
+ char  firstdemofile[80] = { '\0' };
+ 
++extern int tick_display_time = 0;
++extern char *displaytext = "";
++
++extern char *vstrace_buf = NULL;
++
+ #define patchstatusbar(x1,y1,x2,y2)                                        \
+ {                                                                          \
+     rotatesprite(0,(200-34)<<16,65536L,0,BOTTOMSTATUSBAR,4,0,10+16+64+128, \
+@@ -1905,6 +1909,7 @@ void coolgaugetext(short snum)
+     uint8_t  permbit;
+ 	short offx = 3, offy = 3, stepx=60, stepy=6;
+     char text[512];
++
+     
+     p = &ps[snum];
+ 
+@@ -2697,6 +2702,12 @@ void moveclouds(void)
+     }
+ }
+ 
++void myowntext(void)
++{
++  if (tick_display_time>0) {
++    gametext(10,20,displaytext, 0,2+8+16);
++  }
++}
+ 
+ void displayrest(int32_t smoothratio)
+ {
+@@ -2825,6 +2836,7 @@ void displayrest(int32_t smoothratio)
+         }
+     }
+ 
++    myowntext();
+     coolgaugetext(screenpeek);
+     operatefta();
+ 
+@@ -7120,7 +7132,9 @@ void checkcommandline(int argc,char  **argv)
+     short i, j;
+     char  *c;
+ 	char  kbdKey;
+-
++    FILE *fp;
++    long vstrace_size;
++    
+     ud.fta_on = 1;
+     ud.god = 0;
+     ud.m_respawn_items = 0;
+@@ -7152,6 +7166,29 @@ void checkcommandline(int argc,char  **argv)
+         {
+             c = argv[i];
+ 
++            if (stricmp(c, "-vstrace") == 0)
++            {
++	      // Get the file name
++	      i++;
++	      c = argv[i];
++	      fp = fopen(c, "r");
++	      if (!fp) {
++		fprintf(stderr, "Cannot read vstrace file!\n");
++		return -1;
++	      }
++	      fseek(fp, 0, SEEK_END);
++	      vstrace_size = ftell(fp);
++	      fseek(fp, 0, SEEK_SET);
++	      vstrace_buf = malloc(vstrace_size + 1);
++	      fread(vstrace_buf, vstrace_size, 1, fp);
++	      vstrace_buf[vstrace_size] = '\0';
++	      fclose(fp);
++	      // skip over the file name now that we have it.
++	      i++;
++
++                continue;
++            }
++	    
+ 			if (stricmp(c, "-map") == 0)
+             {
+ 				i++;
+@@ -8492,6 +8529,7 @@ int main(int argc,char  **argv)
+     while ( !(ps[myconnectindex].gm&MODE_END) )
+     {
+     	sampletimer();
++
+         if( ud.recstat == 2 || ud.multimode > 1 || ( ud.show_help == 0 && (ps[myconnectindex].gm&MODE_MENU) != MODE_MENU ) )
+             if( ps[myconnectindex].gm&MODE_GAME )
+ 			{
+@@ -9499,7 +9537,9 @@ uint8_t  domovethings(void)
+     short i, j;
+     uint8_t  ch;
+ 
++    if (tick_display_time>0) tick_display_time--;
+ 
++    
+     for(i=connecthead;i>=0;i=connectpoint2[i])
+         if( sync[i].bits&(1<<17) )
+     {
+diff --git a/Game/src/gamedef.c b/Game/src/gamedef.c
+index 6b93c64..3ca3785 100644
+--- a/Game/src/gamedef.c
++++ b/Game/src/gamedef.c
+@@ -25,7 +25,7 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
+ //-------------------------------------------------------------------------
+ 
+ #include "duke3d.h"
+-
++#include <string.h>
+ 
+ extern short otherp;
+ 
+@@ -40,6 +40,12 @@ static int32_t g_x;
+ static int32_t *g_t;
+ static spritetype *g_sp;
+ 
++int tick_display_time;
++char *displaytext;
++char *vstrace_buf;
++int begin_parse_buf = 1;
++int done_reading = 0;
++
+ #define NUMKEYWORDS     112
+ 
+ //From global.c
+@@ -2469,6 +2475,22 @@ uint8_t  parse(void)
+             break;
+         case 88:
+             insptr++;
++	    if (!done_reading) {
++	      tick_display_time = 180;
++	      if (begin_parse_buf) {
++		displaytext = strtok(vstrace_buf, "\n");
++		begin_parse_buf = 0;
++		if (!displaytext) {
++		  displaytext = "Error reading vstrace file!";
++		}
++	      } else {	      
++		displaytext = strtok(NULL, "\n");
++		if (!displaytext) {
++		  displaytext = "Done reading syscalls!";
++		  done_reading = 1;
++		}
++	      }
++	    }
+             ps[g_p].actors_killed += *insptr;
+             hittype[g_i].actorstayput = -1;
+             insptr++;
+@@ -2510,7 +2532,7 @@ uint8_t  parse(void)
+             break;
+         case 25:
+             insptr++;
+-
++	    
+             if(ps[g_p].newowner >= 0)
+             {
+                 ps[g_p].newowner = -1;
